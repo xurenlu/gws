@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/yuanfenxi/ledis"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -266,14 +267,15 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		grp := ""
 
 		grp = r.URL.Path
-		var data []byte
-		n, er := r.Body.Read(data)
+
+		data, er := ioutil.ReadAll(r.Body)
 		if er != nil {
-			w.Write([]byte("{'code':500,'msg':'data missing'}"))
+			w.Write([]byte(
+				fmt.Sprintf("{'code':500,'msg':'%v'}", er)))
 			return
 		}
 
-		if n > 0 {
+		if len(data) > 0 {
 			handleNewWsData(hub, nil, data, grp)
 			//message := MessageToSend{groupName: grp, broadcast: []byte(data)}
 			//hub.ChanToBroadCast <- message
