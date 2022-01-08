@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"github.com/yuanfenxi/ledis"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,7 +25,7 @@ func foundInList(item string, blackList []string) bool {
 }
 
 func setCORS(w http.ResponseWriter) {
-	w.Header().Set("X-Ws-Version","1.0.0")
+	w.Header().Set("X-Ws-Version", "1.0.0")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTION,OPTIONS,GET,POST,PATCH,DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "authorization,rid,Authorization,Content-Type,Accept,x-requested-with，Origin, X-Requested-With, Content-Type,User-Agent,Referer")
@@ -91,7 +91,7 @@ func ServeHistoryMessage(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(500)
 				hisResult := HistoryResult{}
 				hisResult.Code = 500
-				hisResult.Message = "can't stat legnth of group" + lengthError.Error()
+				hisResult.Message = "can't stat length of group" + lengthError.Error()
 				jsonObject, _ := json.Marshal(hisResult)
 				w.Write(jsonObject)
 				return
@@ -262,16 +262,19 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 	//\n",r.URL.Path,r.Method)
 	if "POST" == r.Method {
-		r.ParseForm()
-		grp := ""
-		data := ""
-		grp = r.URL.Path
-		if r.Form["data"] != nil {
-			data = strings.Join(r.Form["data"], "")
-		}
-		if data != "" {
 
-			handleNewWsData(hub, nil, []byte(data), grp)
+		grp := ""
+
+		grp = r.URL.Path
+		var data []byte
+		n, er := r.Body.Read(data)
+		if er != nil {
+			w.Write([]byte("{'code':500,'msg':'data missing'}"))
+			return
+		}
+
+		if n > 0 {
+			handleNewWsData(hub, nil, data, grp)
 			//message := MessageToSend{groupName: grp, broadcast: []byte(data)}
 			//hub.ChanToBroadCast <- message
 			//hub.ChanToSaveToLedis <- message

@@ -4,12 +4,11 @@
 package main
 
 import (
-
+	"encoding/json"
+	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"time"
-	"github.com/gorilla/websocket"
-	"encoding/json"
 )
 
 const (
@@ -23,15 +22,13 @@ const (
 	maxMessageSize = 8192 * 4
 )
 
-
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4196,
 	WriteBufferSize: 4196,
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-func handleNewWsData(hub *Hub, clt *Client,message []byte,groupName string ) {
+func handleNewWsData(hub *Hub, clt *Client, message []byte, groupName string) {
 	var messageObj Message
 
 	if marshalErr := json.Unmarshal(message, &messageObj); marshalErr != nil {
@@ -44,7 +41,7 @@ func handleNewWsData(hub *Hub, clt *Client,message []byte,groupName string ) {
 		if messageObj.Type == 0 && messageObj.Command == 0 {
 			/**
 			如果是0,表示并不是一个聊天消息，所以还是继续广播掉;
-			 */
+			*/
 			messageToSend := MessageToSend{groupName: groupName, broadcast: message, client: clt}
 			hub.ChanToBroadCast <- messageToSend
 		} else if messageObj.Type == MessageTypeCommand {
