@@ -42,7 +42,7 @@ func ServeStatus(w http.ResponseWriter, r *http.Request) {
 
 func ServeHistoryMessage(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
-	setCORS(w)
+
 	if "POST" != r.Method {
 		w.Write([]byte("{'code':403,'msg':'only post  supported'}"))
 		return
@@ -163,7 +163,6 @@ func ServeGroups(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 func ServeCancel(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
-	setCORS(w)
 
 	//\n",r.URL.Path,r.Method)
 	uuid := ""
@@ -263,7 +262,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 	//\n",r.URL.Path,r.Method)
 	if "POST" == r.Method {
-		setCORS(w)
+
 		grp := ""
 
 		grp = r.URL.Path
