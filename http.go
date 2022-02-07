@@ -263,7 +263,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 	//\n",r.URL.Path,r.Method)
 	if "POST" == r.Method {
-
+		setCORS(w)
 		grp := ""
 
 		grp = r.URL.Path
