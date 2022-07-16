@@ -31,7 +31,7 @@ type QueryArgument struct {
 	Uuid string `json:"uuid"`
 }
 type MessageBody struct {
-	Data string `json:"data"`
+	Data interface{} `json:"data"`
 	Sent bool   `json:"sent"`
 	Hash string `json:"hash"`
 }
