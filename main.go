@@ -1,13 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"github.com/gernest/front"
 	"github.com/gin-gonic/gin"
+	"github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/parser"
 	redis "github.com/yuanfenxi/ledis"
+	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,6 +24,7 @@ var LedisAddr string
 var addr = flag.String("addr", ":4998", "http service address")
 var redisClient *redis.Client
 var secret string
+var yamlFormatter = front.NewMatter()
 
 const (
 	blackPrefix = "$$/black/$$"
@@ -187,6 +195,16 @@ func (h *Hub) run() {
 	}
 }
 
+func GetMarkdownBody(content []byte) []byte {
+	yamlFormatter.Handle("---", front.YAMLHandler)
+	reader := bytes.NewReader(content)
+	_, body, err := yamlFormatter.Parse(reader)
+	if err != nil {
+		return content
+	}
+	return []byte(body)
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -196,6 +214,7 @@ func main() {
 	flag.StringVar(&LedisAddr, "ledisAddr", "172.17.0.1:6380", " address of ledis; 192.168.2.3:6379 etc")
 	flag.StringVar(&secret, "secret", "Ilove95271983", "the secret when you list all groups")
 	flag.Parse()
+	yamlFormatter.Handle("---", front.YAMLHandler)
 
 	hub := newHub()
 	redisClient = redis.NewClient(&redis.Options{
@@ -207,18 +226,37 @@ func main() {
 	go hub.ticker()
 
 	router := gin.New()
+	router.SetFuncMap(template.FuncMap{
+		"safe": func(str string) template.HTML {
+			return template.HTML(str)
+		},
+	})
 	router.Use(gin.Logger())
 	router.POST("/__/history/", ServeHistoryMessage)
 	router.POST("/__/ttl", serveTTL)
-	router.LoadHTMLGlob("templates/*.tmpl.html")
+	router.LoadHTMLGlob("templates/*.html")
 	router.Static("/static", "static")
 	router.GET("/__/groups", func(c *gin.Context) {
 		ServeGroups(hub, c.Writer, c.Request)
 	})
 	router.POST("/__/cancel/", ServeCancel)
 	router.Any("/__status", ServeStatus)
-	router.Any("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.tmpl.html", nil)
+	router.GET("/", func(context *gin.Context) {
+		context.Redirect(302, "/docs/index/zh_cn")
+	})
+	router.GET("/docs/:page/:lang", func(c *gin.Context) {
+
+		fileContent, er := ioutil.ReadFile("./md/gws.md")
+		if er != nil {
+			c.JSON(500, gin.H{})
+			return
+		}
+		mdBytes := GetMarkdownBody(fileContent)
+		extensions := parser.CommonExtensions | parser.AutoHeadingIDs
+		mdparser := parser.NewWithExtensions(extensions)
+		html := markdown.ToHTML(mdBytes, mdparser, nil)
+		c.HTML(http.StatusOK, strings.ToLower(c.Param("lang"))+"."+strings.ToLower(c.Param("page"))+".html", gin.H{
+			"Html": template.HTML(html)})
 	})
 
 	router.NoRoute(func(context *gin.Context) {
