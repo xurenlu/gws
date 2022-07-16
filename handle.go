@@ -36,8 +36,6 @@ func handleNewWsData(hub *Hub, clt *Client, message []byte, groupName string) {
 		messageToSend := MessageToSend{groupName: groupName, broadcast: message, client: clt}
 		hub.ChanToBroadCast <- messageToSend
 	} else {
-		log.Print(messageObj)
-		log.Print(messageObj.Type)
 		if messageObj.Type == 0 && messageObj.Command == 0 {
 			/**
 			如果是0,表示并不是一个聊天消息，所以还是继续广播掉;
