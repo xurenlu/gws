@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/yuanfenxi/ledis"
+	"github.com/gin-gonic/gin"
+	redis "github.com/yuanfenxi/ledis"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -32,8 +34,8 @@ type QueryArgument struct {
 }
 type MessageBody struct {
 	Data interface{} `json:"data"`
-	Sent bool   `json:"sent"`
-	Hash string `json:"hash"`
+	Sent bool        `json:"sent"`
+	Hash string      `json:"hash"`
 }
 type MessageType int
 
@@ -96,19 +98,6 @@ func newHub() *Hub {
 		unregister:          make(chan *Client, 8192),
 		groupClients:        make(map[string]GroupClients),
 	}
-}
-
-func serveHome(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.URL)
-	if r.URL.Path != "/" {
-		http.Error(w, "Not found", 404)
-		return
-	}
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", 405)
-		return
-	}
-	http.ServeFile(w, r, "home.html")
 }
 
 func (h *Hub) ticker() {
@@ -199,10 +188,15 @@ func (h *Hub) run() {
 }
 
 func main() {
-	flag.StringVar(&LedisAddr, "ledisAddr", ":6379", " address of ledis; 192.168.2.3:6379 etc")
-	flag.StringVar(&secret, "secret", "Ilove9527", "the secret when you list all groups")
+	port := os.Getenv("PORT")
+	if port == "" {
+		log.Fatal("$PORT must be set")
+	}
+
+	flag.StringVar(&LedisAddr, "ledisAddr", "172.17.0.1:6380", " address of ledis; 192.168.2.3:6379 etc")
+	flag.StringVar(&secret, "secret", "Ilove95271983", "the secret when you list all groups")
 	flag.Parse()
-	log.Println("...")
+
 	hub := newHub()
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     LedisAddr,
@@ -211,19 +205,32 @@ func main() {
 	defer redisClient.Close()
 	go hub.run()
 	go hub.ticker()
-	http.HandleFunc("/__/groups", func(w http.ResponseWriter, r *http.Request) {
-		ServeGroups(hub, w, r)
+
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.POST("/__/history/", ServeHistoryMessage)
+	router.POST("/__/ttl", serveTTL)
+	router.LoadHTMLGlob("templates/*.tmpl.html")
+	router.Static("/static", "static")
+	router.GET("/__/groups", func(c *gin.Context) {
+		ServeGroups(hub, c.Writer, c.Request)
 	})
-	http.HandleFunc("/__/history/", ServeHistoryMessage)
-	http.HandleFunc("/__/ttl", serveTTL)
-	http.HandleFunc("/__/cancel/", ServeCancel)
-	http.HandleFunc("/__status", ServeStatus)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
+	router.POST("/__/cancel/", ServeCancel)
+	router.Any("/__status", ServeStatus)
+	router.Any("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.tmpl.html", nil)
 	})
 
-	err := http.ListenAndServe(*addr, nil)
+	router.NoRoute(func(context *gin.Context) {
+		if "POST" == context.Request.Method {
+			servePost(hub, context)
+		} else {
+			serveGet(hub, context)
+		}
+	})
+	err := router.Run(":" + port)
 	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+		return
 	}
+
 }

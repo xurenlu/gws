@@ -1,21 +1,21 @@
 package main
 
 import (
-	"github.com/gorilla/websocket"
-	"time"
-	"strings"
 	"bytes"
+	"github.com/gorilla/websocket"
 	"log"
+	"strings"
+	"time"
 )
 
 type Client struct {
 	hub *Hub
 
 	// The websocket connection.
-	conn *websocket.Conn
+	conn        *websocket.Conn
 	JoinedGroup string
 	// Buffered channel of outbound messages.
-	send chan []byte
+	send      chan []byte
 	groupName string
 }
 
@@ -43,7 +43,7 @@ func (c *Client) ReadPump() {
 		}
 		if c.groupName == "" || c.groupName == "/" {
 			//@todo 这一块历史遗留问题。最早的版本是支持在连接上websocket后发一条join:{groupName}的方式来加入一个组的；因为老的业务系统还在线上运行，所以保留了。
-			if (strings.HasPrefix(string(bytes.TrimSpace(message)), "join:")) {
+			if strings.HasPrefix(string(bytes.TrimSpace(message)), "join:") {
 				runes := []rune(string(message))
 				start := len("join:")
 				groupName := string(runes[start:len(string(message))])
@@ -55,7 +55,9 @@ func (c *Client) ReadPump() {
 			if c.groupName != "/timer" {
 				//并不接受从客户端发过来的名为timer的组的消息;
 				//log.Println(string(message))
-				handleNewWsData(c.hub,c,message,c.groupName)
+				handleNewWsData(c.hub, c, message, c.groupName)
+			} else {
+				log.Printf(c.groupName)
 			}
 		}
 
@@ -76,7 +78,6 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-
 
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {

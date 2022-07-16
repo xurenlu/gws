@@ -5,7 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/yuanfenxi/ledis"
+	"github.com/gin-gonic/gin"
+	redis "github.com/yuanfenxi/ledis"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -34,13 +35,18 @@ func setCORS(w http.ResponseWriter) {
 }
 
 // serveWs handles websocket requests from the peer.
-func ServeStatus(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
+func ServeStatus(c *gin.Context) {
+	log.Println("new Client connected \t uri:", c.Request.RequestURI, ",remote Addr:", c.Request.RemoteAddr)
 	message := "status ok!"
-	w.Write([]byte(message))
+	_, err := c.Writer.Write([]byte(message))
+	if err != nil {
+		return
+	}
 }
 
-func ServeHistoryMessage(w http.ResponseWriter, r *http.Request) {
+func ServeHistoryMessage(c *gin.Context) {
+	r := c.Request
+	w := c.Writer
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
 
 	if "POST" != r.Method {
@@ -161,7 +167,9 @@ func ServeGroups(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 }
 
-func ServeCancel(w http.ResponseWriter, r *http.Request) {
+func ServeCancel(c *gin.Context) {
+	r := c.Request
+	w := c.Writer
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 
 	//\n",r.URL.Path,r.Method)
@@ -216,7 +224,9 @@ func ServeCancel(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func serveTTL(w http.ResponseWriter, r *http.Request) {
+func serveTTL(c *gin.Context) {
+	r := c.Request
+	w := c.Writer
 	if r.Method != "POST" {
 		w.Write([]byte("{'code':403,'msg':'only post  supported'}"))
 		return
@@ -256,47 +266,51 @@ func serveTTL(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("{'code':405,'msg':'set ttl failed'}"))
 	}
 }
+func servePost(hub *Hub, c *gin.Context) {
+	r := c.Request
+
+	grp := ""
+
+	grp = r.URL.Path
+
+	data, er := ioutil.ReadAll(r.Body)
+	if er != nil {
+		c.JSON(500, gin.H{
+			"code": 500,
+			"msg":  er})
+	}
+
+	if len(data) > 0 {
+		handleNewWsData(hub, nil, data, grp)
+		//message := MessageToSend{groupName: grp, broadcast: []byte(data)}
+		//hub.ChanToBroadCast <- message
+		//hub.ChanToSaveToLedis <- message
+		c.JSON(200, gin.H{
+			"code":  200,
+			"group": grp})
+	} else {
+		c.JSON(406, gin.H{
+			"code": 406, "msg": "data missing"})
+	}
+}
 
 // serveWs handles websocket requests from the peer.
-func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func serveGet(hub *Hub, c *gin.Context) {
+	r := c.Request
+	w := c.Writer
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 	//\n",r.URL.Path,r.Method)
-	if "POST" == r.Method {
-
-		grp := ""
-
-		grp = r.URL.Path
-
-		data, er := ioutil.ReadAll(r.Body)
-		if er != nil {
-			w.Write([]byte(
-				fmt.Sprintf("{'code':500,'msg':'%v'}", er)))
-			return
-		}
-
-		if len(data) > 0 {
-			handleNewWsData(hub, nil, data, grp)
-			//message := MessageToSend{groupName: grp, broadcast: []byte(data)}
-			//hub.ChanToBroadCast <- message
-			//hub.ChanToSaveToLedis <- message
-			w.Write([]byte("{'code':200,'group':" + grp + "}"))
-		} else {
-			w.Write([]byte("{'code':403,'msg':'data missing'}"))
-		}
+	//.Println("new client .")
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
 		return
-	} else {
-		//.Println("new client .")
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			//log.Println(err)
-			return
-		}
-		//w.Write([]byte("Hello websocket"))
-		client := &Client{hub: hub, conn: conn, send: make(chan []byte, 8), groupName: r.URL.Path}
-		client.hub.register <- client
-		// Allow collection of memory referenced by the caller by doing all work in
-		// new goroutines.
-		go client.WritePump()
-		go client.ReadPump()
 	}
+	//w.Write([]byte("Hello websocket"))
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 8), groupName: r.URL.Path}
+	client.hub.register <- client
+	// Allow collection of memory referenced by the caller by doing all work in
+	// new goroutines.
+	go client.WritePump()
+	go client.ReadPump()
 }
