@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "reconnecting": "^4.4.0-suntower-1.0.3",
     "ws": "^8.8.1"
   }
 }

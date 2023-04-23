@@ -2,7 +2,12 @@
 # yarn lockfile v1
 
 
-"ws@^8.8.1":
-  "integrity" "sha512-bGy2JzvzkPowEJV++hF07hAD6niYSr0JzBNo/J29WsB57A2r7Wlc1UFcTR9IzrPvuNVO4B8LGqF8qcpsVOhJCA=="
-  "resolved" "https://registry.npmjs.org/ws/-/ws-8.8.1.tgz"
-  "version" "8.8.1"
+reconnecting@^4.4.0-suntower-1.0.3:
+  version "4.4.0-suntower-1.0.3"
+  resolved "https://registry.npmjs.org/reconnecting/-/reconnecting-4.4.0-suntower-1.0.3.tgz#57b9edcac13f77b2bfff7deac64036c878c6e49b"
+  integrity sha512-LzKEia9zeAWgYgvu5d/90RUB+fJnu80Y+jhwOBPpTY1q5IkfgzevnYbPXpu4e/SeGgyldWtYbS5HKG6ZDEBxFw==
+
+ws@^8.8.1:
+  version "8.8.1"
+  resolved "https://registry.npmjs.org/ws/-/ws-8.8.1.tgz"
+  integrity sha512-bGy2JzvzkPowEJV++hF07hAD6niYSr0JzBNo/J29WsB57A2r7Wlc1UFcTR9IzrPvuNVO4B8LGqF8qcpsVOhJCA==

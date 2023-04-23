@@ -232,13 +232,13 @@ func main() {
 		},
 	})
 	router.Use(gin.Logger())
+	router.POST("/__/history", ServeHistoryMessage)
 	router.POST("/__/history/", ServeHistoryMessage)
 	router.POST("/__/ttl", serveTTL)
+	router.POST("/__/ttl/", serveTTL)
 	router.LoadHTMLGlob("templates/*.html")
 	router.Static("/static", "static")
-	router.GET("/__/groups", func(c *gin.Context) {
-		ServeGroups(hub, c.Writer, c.Request)
-	})
+
 	router.POST("/__/cancel/", ServeCancel)
 	router.Any("/__status", ServeStatus)
 	router.GET("/", func(context *gin.Context) {

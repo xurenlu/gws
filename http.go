@@ -34,108 +34,79 @@ func setCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Expose-Headers", "Authorization")
 }
 
+// ServeStatus
 // serveWs handles websocket requests from the peer.
 func ServeStatus(c *gin.Context) {
 	log.Println("new Client connected \t uri:", c.Request.RequestURI, ",remote Addr:", c.Request.RemoteAddr)
 	message := "status ok!"
-	_, err := c.Writer.Write([]byte(message))
-	if err != nil {
-		return
-	}
+	c.String(http.StatusOK, message)
 }
 
 func ServeHistoryMessage(c *gin.Context) {
 	r := c.Request
-	w := c.Writer
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
-
-	if "POST" != r.Method {
-		w.Write([]byte("{'code':403,'msg':'only post  supported'}"))
-		return
-	}
-	r.ParseForm()
-	groupName := ""
-	fromPosition := ""
-	size := "1000"
-	if r.Form["groupName"] != nil {
-		groupName = strings.Join(r.Form["groupName"], "")
-	}
-	if r.Form["position"] != nil {
-		fromPosition = strings.Join(r.Form["position"], "")
-	}
-	if r.Form["size"] != nil {
-		size = strings.Join(r.Form["size"], "")
-	}
+	groupName := c.Param("groupName")
+	fromPosition := c.Param("position")
+	size := c.Param("size")
 	if groupName == "" {
-		w.Write([]byte("{'code':403,'msg':'groupName missing'}"))
+		c.JSON(http.StatusForbidden, gin.H{"msg": "groupName missing"})
 		return
 	}
-	//log.Println("got history query")
-	if groupName != "" {
-		var theClient *redis.Client
-		theClient = redis.NewClient(&redis.Options{
-			Addr:     LedisAddr,
-			PoolSize: 16,
-		})
-		defer theClient.Close()
-		var positionInt int
-		if fromPosition == "" {
-			fromPosition, _ = theClient.Get("pos." + groupName).Result()
+	var theClient *redis.Client
+	theClient = redis.NewClient(&redis.Options{
+		Addr:     LedisAddr,
+		PoolSize: 16,
+	})
+	defer func(theClient *redis.Client) {
+		err := theClient.Close()
+		if err != nil {
+			fmt.Println("redis close error:", err.Error())
 		}
-		positionInt, convertErr := strconv.Atoi(fromPosition)
-		if convertErr != nil {
-			positionInt = 0
-		}
-
-		sizeInt, convertSizeErr := strconv.Atoi(size)
-		if convertSizeErr != nil {
-			sizeInt = 1000
-		}
-		var returnObj []string
-		if positionInt < 0 {
-			currentLength, lengthError := theClient.LLen(groupName).Result()
-			if lengthError != nil {
-				w.WriteHeader(500)
-				hisResult := HistoryResult{}
-				hisResult.Code = 500
-				hisResult.Message = "can't stat length of group" + lengthError.Error()
-				jsonObject, _ := json.Marshal(hisResult)
-				w.Write(jsonObject)
-				return
-			}
-			returnObj, _ = theClient.LRange(groupName, int64(currentLength)+int64(positionInt), int64(currentLength)+int64(positionInt+sizeInt)-1).Result()
-		} else {
-			returnObj, _ = theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
-		}
-
-		historyResult := HistoryResult{}
-		historyResult.Code = 200
-		historyResult.Position = positionInt
-
-		blackResult, _ := theClient.SMembers(blackPrefix + groupName).Result()
-
-		filteredResult := returnObj[:0]
-		/**
-		读取Redis里的黑名单;
-		*/
-		for i := 0; i < len(returnObj); i++ {
-			if foundInList(returnObj[i], blackResult) {
-
-			} else {
-				filteredResult = append(filteredResult, returnObj[i])
-			}
-		}
-
-		historyResult.Data = filteredResult
-		jsonData, er := json.Marshal(historyResult)
-		if er != nil {
-			w.Write([]byte("{'code':403,'msg':'json marshal failed;'}"))
-		} else {
-			w.Write(jsonData)
-		}
-	} else {
-
+	}(theClient)
+	var positionInt int
+	if fromPosition == "" {
+		fromPosition, _ = theClient.Get("pos." + groupName).Result()
 	}
+	positionInt, convertErr := strconv.Atoi(fromPosition)
+	if convertErr != nil {
+		positionInt = 0
+	}
+
+	sizeInt, convertSizeErr := strconv.Atoi(size)
+	if convertSizeErr != nil {
+		sizeInt = 1000
+	}
+	var returnObj []string
+	if positionInt < 0 {
+		currentLength, lengthError := theClient.LLen(groupName).Result()
+		if lengthError != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"msg": "can't stat length of group" + lengthError.Error()})
+			return
+		}
+		returnObj, _ = theClient.LRange(groupName, currentLength+int64(positionInt), currentLength+int64(positionInt+sizeInt)-1).Result()
+	} else {
+		returnObj, _ = theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
+	}
+
+	historyResult := HistoryResult{}
+	historyResult.Code = 200
+	historyResult.Position = positionInt
+
+	blackResult, _ := theClient.SMembers(blackPrefix + groupName).Result()
+
+	filteredResult := returnObj[:0]
+	/**
+	读取Redis里的黑名单;
+	*/
+	for i := 0; i < len(returnObj); i++ {
+		if foundInList(returnObj[i], blackResult) {
+
+		} else {
+			filteredResult = append(filteredResult, returnObj[i])
+		}
+	}
+	historyResult.Data = filteredResult
+	c.JSON(200, historyResult)
 	return
 }
 
@@ -158,18 +129,11 @@ func ServeGroups(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(group + "\n"))
 
 	}
-	//if er!= nil {
-	//	w.Write([]byte( er.Error()))
-	//	w.Write([]byte("{'code':500}"))
-	//}else{
-	//	w.Write(data)
-	//}
 
 }
 
 func ServeCancel(c *gin.Context) {
 	r := c.Request
-	w := c.Writer
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
 
 	//\n",r.URL.Path,r.Method)
@@ -180,77 +144,68 @@ func ServeCancel(c *gin.Context) {
 		Addr:     LedisAddr,
 		PoolSize: 16,
 	})
-	defer theClient.Close()
-
-	if "POST" == r.Method {
-		r.ParseForm()
-		groupName := ""
-
-		if r.Form["groupName"] != nil {
-			groupName = strings.Join(r.Form["groupName"], "")
+	defer func(theClient *redis.Client) {
+		err := theClient.Close()
+		if err != nil {
+			fmt.Println("redis close error:", err.Error())
 		}
-		if groupName == "" {
-			w.Write([]byte("{'code':403,'msg':'groupName missing'}"))
-			return
-		}
-		if r.Form["uuid"] != nil {
-			uuid = strings.Join(r.Form["uuid"], "")
-		}
+	}(theClient)
 
-		positionInt := 0
-		sizeInt := 200
-		returnObj, _ := theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
-		for i := 0; i < len(returnObj); i++ {
-			var messageObj Message
-			marshalErr := json.Unmarshal([]byte(returnObj[i]), &messageObj)
-			if marshalErr == nil {
-				if messageObj.Uuid == uuid {
-					md5Hash := md5.New()
-					md5Hash.Write([]byte(returnObj[i]))
-					fmt.Println("uuid found,save in LList:" + blackPrefix + groupName)
-					sum := md5Hash.Sum(nil)
-					//把这个维护到黑名单;
-					theClient.SAdd(blackPrefix+groupName, hex.EncodeToString(sum))
-					w.Write([]byte("{'code':200,'msg':'uuid found and saved in blacklist:" + hex.EncodeToString(sum) + "'}"))
-					return
-				}
+	groupName := c.Param("groupName")
+
+	if groupName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "groupName missing"})
+		return
+	}
+	uuid = c.Param("uuid")
+
+	positionInt := 0
+	sizeInt := 200
+	returnObj, _ := theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
+	for i := 0; i < len(returnObj); i++ {
+		var messageObj Message
+		marshalErr := json.Unmarshal([]byte(returnObj[i]), &messageObj)
+		if marshalErr == nil {
+			if messageObj.Uuid == uuid {
+				md5Hash := md5.New()
+				md5Hash.Write([]byte(returnObj[i]))
+				fmt.Println("uuid found,save in LList:" + blackPrefix + groupName)
+				sum := md5Hash.Sum(nil)
+				//把这个维护到黑名单;
+				theClient.SAdd(blackPrefix+groupName, hex.EncodeToString(sum))
+				c.JSON(http.StatusOK, gin.H{"msg": "uuid found and saved in blacklist:" + hex.EncodeToString(sum)})
+				return
 			}
 		}
-		w.Write([]byte("{'code':200,'msg':'uuid not found in latest 50 items;'}"))
-
 	}
-	if "GET" == r.Method {
-		w.Write([]byte("only POST method supported"))
-	}
+	c.JSON(http.StatusOK, gin.H{"msg": "uuid not found in latest 50 items;"})
 }
 
 func serveTTL(c *gin.Context) {
-	r := c.Request
-	w := c.Writer
-	if r.Method != "POST" {
-		w.Write([]byte("{'code':403,'msg':'only post  supported'}"))
+	ttl := -1
+	grp := c.Param("groupName")
+	if grp == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "groupName missing"})
 		return
 	}
 
-	r.ParseForm()
-	grp := r.URL.Path
-	ttl := -1
-	if r.Form["groupName"] == nil {
-		w.Write([]byte("{'code':403,'msg':'groupname missing'}"))
+	ttlInParam := c.Param("ttl")
+	if ttlInParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl missing"})
 		return
 	}
-	grp = strings.Join(r.Form["groupName"], "")
-	if r.Form["ttl"] != nil {
-		var er error
-		ttl, er = strconv.Atoi(strings.Join(r.Form["ttl"], ""))
-		if er != nil {
-			log.Println("got an error while parse ttl;")
-			w.Write([]byte("{'code':403,'msg':'ttl should be great than 0 '}"))
-			return
-		}
+
+	var er error
+	ttl, er = strconv.Atoi(ttlInParam)
+	if er != nil {
+		log.Println("got an error while parse ttl;")
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl should be a number"})
+		return
 	}
-	if ttl == -1 {
-		w.Write([]byte("{'code':403,'msg':'ttl should be great than 0 '}"))
+
+	if ttl < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl should be a number and great than 0"})
+		return
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr:     LedisAddr,
@@ -261,9 +216,9 @@ func serveTTL(c *gin.Context) {
 	result, errorOfLedis := client.LExpire(grp, ttl).Result()
 	log.Printf("set ttl result:%d", result)
 	if errorOfLedis == nil {
-		w.Write([]byte("{'code':200,'msg':'suceed'}"))
+		c.JSON(http.StatusOK, gin.H{"msg": "set ttl succeed"})
 	} else {
-		w.Write([]byte("{'code':405,'msg':'set ttl failed'}"))
+		c.JSON(http.StatusInternalServerError, gin.H{"msg": "set ttl failed:" + errorOfLedis.Error()})
 	}
 }
 func servePost(hub *Hub, c *gin.Context) {

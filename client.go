@@ -19,7 +19,8 @@ type Client struct {
 	groupName string
 }
 
-// readPump pumps messages from the websocket connection to the hub.
+// ReadPump
+// pumps messages from the websocket connection to the hub.
 //
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
@@ -64,7 +65,9 @@ func (c *Client) ReadPump() {
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
+// WritePump
+//
+//	pumps messages from the hub to the websocket connection.
 //
 // A goroutine running writePump is started for each connection. The
 // application ensures that there is at most one writer to a connection by
@@ -102,6 +105,7 @@ func (c *Client) WritePump() {
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				log.Println("write ping message error:", err)
 				return
 			}
 		}
