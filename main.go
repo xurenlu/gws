@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/parser"
-	redis "github.com/yuanfenxi/ledis"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -20,9 +19,9 @@ import (
 )
 
 var lock4Connections sync.RWMutex
-var LedisAddr string
+
 var addr = flag.String("addr", ":4998", "http service address")
-var redisClient *redis.Client
+
 var secret string
 var yamlFormatter = front.NewMatter()
 
@@ -174,23 +173,6 @@ func (h *Hub) run() {
 				close(message.client.send)
 				delete(h.groupClients[message.groupName], message.client)
 			}
-		case message := <-h.ChanToSaveToLedis:
-			//将消息存入到ledis里;
-			lcmd := redisClient.LPush(message.groupName, message.broadcast)
-			/**
-			如果推送失败入，就sleep一秒之后再推；
-			还失败呢？
-			那就不管了...
-			*/
-			if lcmd.Err() != nil {
-				go func() {
-					time.Sleep(1 * time.Second)
-					secondPushCmd := redisClient.LPush(message.groupName, message.broadcast)
-					if secondPushCmd.Err() != nil {
-						log.Println("push to ledis/redis failed", message.groupName, string(message.broadcast))
-					}
-				}()
-			}
 		}
 	}
 }
@@ -211,17 +193,12 @@ func main() {
 		log.Fatal("$PORT must be set")
 	}
 
-	flag.StringVar(&LedisAddr, "ledisAddr", "172.17.0.1:6380", " address of ledis; 192.168.2.3:6379 etc")
 	flag.StringVar(&secret, "secret", "Ilove95271983", "the secret when you list all groups")
 	flag.Parse()
 	yamlFormatter.Handle("---", front.YAMLHandler)
 
 	hub := newHub()
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     LedisAddr,
-		PoolSize: 128,
-	})
-	defer redisClient.Close()
+
 	go hub.run()
 	go hub.ticker()
 
@@ -232,14 +209,8 @@ func main() {
 		},
 	})
 	router.Use(gin.Logger())
-	router.POST("/__/history", ServeHistoryMessage)
-	router.POST("/__/history/", ServeHistoryMessage)
-	router.POST("/__/ttl", serveTTL)
-	router.POST("/__/ttl/", serveTTL)
 	router.LoadHTMLGlob("templates/*.html")
 	router.Static("/static", "static")
-
-	router.POST("/__/cancel/", ServeCancel)
 	router.Any("/__status", ServeStatus)
 	router.GET("/", func(context *gin.Context) {
 		context.Redirect(302, "/docs/index/zh_cn")

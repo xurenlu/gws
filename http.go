@@ -3,14 +3,12 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"encoding/json"
+
 	"fmt"
 	"github.com/gin-gonic/gin"
-	redis "github.com/yuanfenxi/ledis"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -42,74 +40,6 @@ func ServeStatus(c *gin.Context) {
 	c.String(http.StatusOK, message)
 }
 
-func ServeHistoryMessage(c *gin.Context) {
-	r := c.Request
-	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
-	groupName := c.Param("groupName")
-	fromPosition := c.Param("position")
-	size := c.Param("size")
-	if groupName == "" {
-		c.JSON(http.StatusForbidden, gin.H{"msg": "groupName missing"})
-		return
-	}
-	var theClient *redis.Client
-	theClient = redis.NewClient(&redis.Options{
-		Addr:     LedisAddr,
-		PoolSize: 16,
-	})
-	defer func(theClient *redis.Client) {
-		err := theClient.Close()
-		if err != nil {
-			fmt.Println("redis close error:", err.Error())
-		}
-	}(theClient)
-	var positionInt int
-	if fromPosition == "" {
-		fromPosition, _ = theClient.Get("pos." + groupName).Result()
-	}
-	positionInt, convertErr := strconv.Atoi(fromPosition)
-	if convertErr != nil {
-		positionInt = 0
-	}
-
-	sizeInt, convertSizeErr := strconv.Atoi(size)
-	if convertSizeErr != nil {
-		sizeInt = 1000
-	}
-	var returnObj []string
-	if positionInt < 0 {
-		currentLength, lengthError := theClient.LLen(groupName).Result()
-		if lengthError != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"msg": "can't stat length of group" + lengthError.Error()})
-			return
-		}
-		returnObj, _ = theClient.LRange(groupName, currentLength+int64(positionInt), currentLength+int64(positionInt+sizeInt)-1).Result()
-	} else {
-		returnObj, _ = theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
-	}
-
-	historyResult := HistoryResult{}
-	historyResult.Code = 200
-	historyResult.Position = positionInt
-
-	blackResult, _ := theClient.SMembers(blackPrefix + groupName).Result()
-
-	filteredResult := returnObj[:0]
-	/**
-	读取Redis里的黑名单;
-	*/
-	for i := 0; i < len(returnObj); i++ {
-		if foundInList(returnObj[i], blackResult) {
-
-		} else {
-			filteredResult = append(filteredResult, returnObj[i])
-		}
-	}
-	historyResult.Data = filteredResult
-	c.JSON(200, historyResult)
-	return
-}
-
 func ServeGroups(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	//data,er := json.Marshal(hub.groupClients)
 	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr)
@@ -132,95 +62,6 @@ func ServeGroups(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 }
 
-func ServeCancel(c *gin.Context) {
-	r := c.Request
-	fmt.Println("new Client connected \t uri:", r.RequestURI, ",remote Addr:", r.RemoteAddr, ",Method:", r.Method)
-
-	//\n",r.URL.Path,r.Method)
-	uuid := ""
-
-	var theClient *redis.Client
-	theClient = redis.NewClient(&redis.Options{
-		Addr:     LedisAddr,
-		PoolSize: 16,
-	})
-	defer func(theClient *redis.Client) {
-		err := theClient.Close()
-		if err != nil {
-			fmt.Println("redis close error:", err.Error())
-		}
-	}(theClient)
-
-	groupName := c.Param("groupName")
-
-	if groupName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "groupName missing"})
-		return
-	}
-	uuid = c.Param("uuid")
-
-	positionInt := 0
-	sizeInt := 200
-	returnObj, _ := theClient.LRange(groupName, int64(positionInt), int64(positionInt+sizeInt)-1).Result()
-	for i := 0; i < len(returnObj); i++ {
-		var messageObj Message
-		marshalErr := json.Unmarshal([]byte(returnObj[i]), &messageObj)
-		if marshalErr == nil {
-			if messageObj.Uuid == uuid {
-				md5Hash := md5.New()
-				md5Hash.Write([]byte(returnObj[i]))
-				fmt.Println("uuid found,save in LList:" + blackPrefix + groupName)
-				sum := md5Hash.Sum(nil)
-				//把这个维护到黑名单;
-				theClient.SAdd(blackPrefix+groupName, hex.EncodeToString(sum))
-				c.JSON(http.StatusOK, gin.H{"msg": "uuid found and saved in blacklist:" + hex.EncodeToString(sum)})
-				return
-			}
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{"msg": "uuid not found in latest 50 items;"})
-}
-
-func serveTTL(c *gin.Context) {
-	ttl := -1
-	grp := c.Param("groupName")
-	if grp == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "groupName missing"})
-		return
-	}
-
-	ttlInParam := c.Param("ttl")
-	if ttlInParam == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl missing"})
-		return
-	}
-
-	var er error
-	ttl, er = strconv.Atoi(ttlInParam)
-	if er != nil {
-		log.Println("got an error while parse ttl;")
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl should be a number"})
-		return
-	}
-
-	if ttl < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "ttl should be a number and great than 0"})
-		return
-	}
-	client := redis.NewClient(&redis.Options{
-		Addr:     LedisAddr,
-		PoolSize: 128,
-	})
-
-	defer client.Close()
-	result, errorOfLedis := client.LExpire(grp, ttl).Result()
-	log.Printf("set ttl result:%d", result)
-	if errorOfLedis == nil {
-		c.JSON(http.StatusOK, gin.H{"msg": "set ttl succeed"})
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"msg": "set ttl failed:" + errorOfLedis.Error()})
-	}
-}
 func servePost(hub *Hub, c *gin.Context) {
 	r := c.Request
 
