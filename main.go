@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/gernest/front"
 	"github.com/gin-gonic/gin"
 	"html/template"
 	"log"
@@ -17,7 +16,6 @@ var lock4Connections sync.RWMutex
 var addr = flag.String("addr", ":4998", "http service address")
 
 var secret string
-var yamlFormatter = front.NewMatter()
 
 const (
 	blackPrefix = "$$/black/$$"
@@ -179,7 +177,6 @@ func main() {
 
 	flag.StringVar(&secret, "secret", "Ilove95271983", "the secret when you list all groups")
 	flag.Parse()
-	yamlFormatter.Handle("---", front.YAMLHandler)
 
 	hub := newHub()
 

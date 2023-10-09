@@ -2,10 +2,7 @@ module gws
 
 go 1.18
 
-require (
-	github.com/gernest/front v0.0.0-20210301115436-8a0b0a782d0a
-	github.com/gorilla/websocket v1.5.0
-)
+require github.com/gorilla/websocket v1.5.0
 
 require github.com/gin-gonic/gin v1.9.0
 
@@ -33,6 +30,5 @@ require (
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
