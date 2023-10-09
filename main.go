@@ -1,19 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"github.com/gernest/front"
 	"github.com/gin-gonic/gin"
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/parser"
 	"html/template"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -177,16 +171,6 @@ func (h *Hub) run() {
 	}
 }
 
-func GetMarkdownBody(content []byte) []byte {
-	yamlFormatter.Handle("---", front.YAMLHandler)
-	reader := bytes.NewReader(content)
-	_, body, err := yamlFormatter.Parse(reader)
-	if err != nil {
-		return content
-	}
-	return []byte(body)
-}
-
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -214,20 +198,6 @@ func main() {
 	router.Any("/__status", ServeStatus)
 	router.GET("/", func(context *gin.Context) {
 		context.Redirect(302, "/docs/index/zh_cn")
-	})
-	router.GET("/docs/:page/:lang", func(c *gin.Context) {
-
-		fileContent, er := ioutil.ReadFile("./md/gws.md")
-		if er != nil {
-			c.JSON(500, gin.H{})
-			return
-		}
-		mdBytes := GetMarkdownBody(fileContent)
-		extensions := parser.CommonExtensions | parser.AutoHeadingIDs
-		mdparser := parser.NewWithExtensions(extensions)
-		html := markdown.ToHTML(mdBytes, mdparser, nil)
-		c.HTML(http.StatusOK, strings.ToLower(c.Param("lang"))+"."+strings.ToLower(c.Param("page"))+".html", gin.H{
-			"Html": template.HTML(html)})
 	})
 
 	router.NoRoute(func(context *gin.Context) {

@@ -56,13 +56,6 @@ github.com/goccy/go-json/internal/encoder/vm_color_indent
 github.com/goccy/go-json/internal/encoder/vm_indent
 github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
-# github.com/gomarkdown/markdown v0.0.0-20220627144906-e9a81102ebeb
-## explicit; go 1.12
-github.com/gomarkdown/markdown
-github.com/gomarkdown/markdown/ast
-github.com/gomarkdown/markdown/html
-github.com/gomarkdown/markdown/internal/valid
-github.com/gomarkdown/markdown/parser
 # github.com/gorilla/websocket v1.5.0
 ## explicit; go 1.12
 github.com/gorilla/websocket
@@ -84,10 +77,6 @@ github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.2
 ## explicit; go 1.12
 github.com/modern-go/reflect2
-# github.com/onsi/ginkgo v1.16.5
-## explicit; go 1.16
-# github.com/onsi/gomega v1.19.0
-## explicit; go 1.18
 # github.com/pelletier/go-toml/v2 v2.0.6
 ## explicit; go 1.16
 github.com/pelletier/go-toml/v2
@@ -117,14 +106,6 @@ github.com/twitchyliquid64/golang-asm/unsafeheader
 # github.com/ugorji/go/codec v1.2.9
 ## explicit; go 1.11
 github.com/ugorji/go/codec
-# github.com/yuanfenxi/ledis v0.0.0-20200405150636-fdb5d7b6d825
-## explicit; go 1.14
-github.com/yuanfenxi/ledis
-github.com/yuanfenxi/ledis/internal
-github.com/yuanfenxi/ledis/internal/consistenthash
-github.com/yuanfenxi/ledis/internal/hashtag
-github.com/yuanfenxi/ledis/internal/pool
-github.com/yuanfenxi/ledis/internal/proto
 # golang.org/x/arch v0.0.0-20210923205945-b76863e36670
 ## explicit; go 1.17
 golang.org/x/arch/x86/x86asm
@@ -152,6 +133,8 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+## explicit; go 1.11
 # google.golang.org/protobuf v1.28.1
 ## explicit; go 1.11
 google.golang.org/protobuf/encoding/protowire
