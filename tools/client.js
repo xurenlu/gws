@@ -1,5 +1,5 @@
 const webSocket = require('ws');
-let ws = new webSocket("ws://localhost:4998/hello")
+let ws = new webSocket("wss://ws.404.ms/hello")
 
 ws.on('open', function open() {
     console.log("connected");
